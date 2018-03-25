@@ -365,11 +365,66 @@
 <p>定位原因：不熟悉mysql协议，遗漏了关键信息null-bit类型和包头的pack[00].</p>
 <p><a href="https://jin-yang.github.io/post/mysql-protocol.html" target="_blank" rel="noopener">参考文献</a></p>
 <p><a href="https://dev.mysql.com/doc/internals/en/binary-protocol-value.html" target="_blank" rel="noopener">protocol</a><br>(<a href="https://dev.mysql.com/doc/internals/en/null-bitmap.html" target="_blank" rel="noopener">https://dev.mysql.com/doc/internals/en/null-bitmap.html</a>)<br><a href="https://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html" target="_blank" rel="noopener">pack包</a></p>
-<h5 id="引申学习"><a href="#引申学习" class="headerlink" title="引申学习"></a>引申学习</h5><p>mysql-test中关于date及time类型的测试<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">```</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">mysql协议的text 协议</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">##### mysql date time 等类型其他相关资料</span><br><span class="line"></span><br><span class="line">[官方文档关于date和time类型](https://dev.mysql.com/doc/internals/en/date-and-time-data-type-representation.html)，关于year date time timestamp 和datetime类型的存储需求，如下表所示：</span><br><span class="line"></span><br><span class="line">Type | Storage before Mysql 5.6.4 | Storage mysql5.6.4</span><br><span class="line">---|---|---</span><br><span class="line">year  | 1 个字节，小端存储 |   unchanged</span><br><span class="line">date  | 3 个字节，小端存储 |  unchanged</span><br><span class="line">time  | 3 个字节, 小端存储 |  3 bytes+小数位秒存储，大端存储</span><br><span class="line">timestamp | 4 个字节,小端存储 |  4个字节+小数位秒的存储，大端存储</span><br><span class="line">datetime | 8个字节，小端存储 | 5个字节+小数位秒存储，大端存储</span><br><span class="line"></span><br><span class="line">在5.6.4版本之前，数据类型按照以下方式编码：</span><br><span class="line">- year：一个字节整型</span><br><span class="line">- date：3个字节整型，按照YYYY*16*32+MM*32+DD这样的方式计算</span><br><span class="line">- Time：3个字节的整型，按照DD*24*3600+HH*3600+MM*60+SS的方式计算</span><br><span class="line">- Timestamp：4个字节的整型。记录自1970-01-01 00:00:00到当前事件的毫秒数</span><br><span class="line">- datetime: 8个字节整型。四个字节表示日期 YYYY*10000+MM*100+DD 四个字节表示时间，HH*10000+MM*100+SS</span><br><span class="line">而在5.6.4版本以后，time timestamp和datetime类型包含了分数部分，表示秒的精度。这些类型统一改由大端存储（为了兼容memcmp())。秒的精度紧跟着整数部分。</span><br><span class="line">- time 无秒精度的类型可以如下编码：</span><br></pre></td></tr></table></figure></p>
-<p>1 bits sign(1= non-negative, 0= negative)<br>1 bits unused (reserved for future extensions)<br>10 bits hour (0-838)</p>
-<h2 id="6-bits-minute-0-59"><a href="#6-bits-minute-0-59" class="headerlink" title="6 bits minute (0-59)"></a>6 bits minute (0-59)</h2><p>24 bits = 3 bytes<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"></span><br><span class="line">- timestamp 无浮点位的编码：和5.6.4之前版本一样，只是存储时使用大端存储</span><br><span class="line"></span><br><span class="line">- datetime 无浮点秒编码：</span><br></pre></td></tr></table></figure></p>
-<p>1 bit  sign             (1= non-negative, 0= negative)<br>17 bits year*13+month   (year 0-9999, month 0-12)<br> 5 bits day             (0-31)<br> 5 bits hour            (0-23)<br> 6 bits minute          (0-59)</p>
-<h2 id="6-bits-second-0-59"><a href="#6-bits-second-0-59" class="headerlink" title=" 6 bits second          (0-59)"></a> 6 bits second          (0-59)</h2><p>40 bits = 5 bytes<br><code>`</code></p>
+<h5 id="引申学习"><a href="#引申学习" class="headerlink" title="引申学习"></a>引申学习</h5><ul>
+<li><p>mysql-test中关于date及time类型的测试</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>mysql协议的text 协议</p>
+</li>
+</ul>
+<h5 id="mysql-date-time-等类型其他相关资料"><a href="#mysql-date-time-等类型其他相关资料" class="headerlink" title="mysql date time 等类型其他相关资料"></a>mysql date time 等类型其他相关资料</h5><p><a href="https://dev.mysql.com/doc/internals/en/date-and-time-data-type-representation.html" target="_blank" rel="noopener">官方文档关于date和time类型</a>，关于year date time timestamp 和datetime类型的存储需求，如下表所示：</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Storage before Mysql 5.6.4</th>
+<th>Storage mysql5.6.4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>year</td>
+<td>1 个字节，小端存储</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>date</td>
+<td>3 个字节，小端存储</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>time</td>
+<td>3 个字节, 小端存储</td>
+<td>3 bytes+小数位秒存储，大端存储</td>
+</tr>
+<tr>
+<td>timestamp</td>
+<td>4 个字节,小端存储</td>
+<td>4个字节+小数位秒的存储，大端存储</td>
+</tr>
+<tr>
+<td>datetime</td>
+<td>8个字节，小端存储</td>
+<td>5个字节+小数位秒存储，大端存储</td>
+</tr>
+</tbody>
+</table>
+<p>在5.6.4版本之前，数据类型按照以下方式编码：</p>
+<ul>
+<li>year：一个字节整型</li>
+<li>date：3个字节整型，按照YYYY<em>16</em>32+MM*32+DD这样的方式计算</li>
+<li>Time：3个字节的整型，按照DD<em>24</em>3600+HH<em>3600+MM</em>60+SS的方式计算</li>
+<li>Timestamp：4个字节的整型。记录自1970-01-01 00:00:00到当前事件的毫秒数</li>
+<li>datetime: 8个字节整型。四个字节表示日期 YYYY<em>10000+MM</em>100+DD 四个字节表示时间，HH<em>10000+MM</em>100+SS<br>而在5.6.4版本以后，time timestamp和datetime类型包含了分数部分，表示秒的精度。这些类型统一改由大端存储（为了兼容memcmp())。秒的精度紧跟着整数部分。</li>
+<li><p>time 无秒精度的类型可以如下编码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">1 bits sign(1= non-negative, 0= negative)</span><br><span class="line">1 bits unused (reserved for future extensions)</span><br><span class="line">10 bits hour (0-838)</span><br><span class="line">6 bits minute (0-59)</span><br><span class="line">--------------------</span><br><span class="line">24 bits = 3 bytes</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>timestamp 无浮点位的编码：和5.6.4之前版本一样，只是存储时使用大端存储</p>
+</li>
+<li><p>datetime 无浮点秒编码：</p>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">1 bit  sign             (1= non-negative, 0= negative)</span><br><span class="line">17 bits year*13+month   (year 0-9999, month 0-12)</span><br><span class="line"> 5 bits day             (0-31)</span><br><span class="line"> 5 bits hour            (0-23)</span><br><span class="line"> 6 bits minute          (0-59)</span><br><span class="line"> 6 bits second          (0-59)</span><br><span class="line">---------------------------</span><br><span class="line">40 bits = 5 bytes</span><br></pre></td></tr></table></figure>
 <ul>
 <li>分数部分的编码依赖于分数部分的精度</li>
 </ul>
